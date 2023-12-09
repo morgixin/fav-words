@@ -20,6 +20,7 @@ class FavWords extends StatelessWidget {
       create: (context) => FavWordsState(),
       child: MaterialApp(
         title: 'FavWords',
+        debugShowCheckedModeBanner: false,
         theme: ThemeData(
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueGrey),
