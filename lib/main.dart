@@ -1,6 +1,11 @@
 import 'package:english_words/english_words.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:sqflite/sqflite.dart';
+
+import 'package:favwords/favorite.dart';
+import 'package:favwords/fav_helper.dart';
+
 
 void main() {
   runApp(FavWords());
@@ -27,18 +32,41 @@ class FavWords extends StatelessWidget {
 
 class FavWordsState extends ChangeNotifier {
   var current = WordPair.random();
+  bool currentWasAdded = false;
 
   void getNext() {
     current = WordPair.random();
     notifyListeners();
   }
 
-  var favorites = <WordPair>[];
-  void addFavorite() {
-    if (favorites.contains(current)) {
-      favorites.remove(current);
-    } else {
-      favorites.add(current);
+  List<Favorite> favorites = [];
+  var _db  = FavoriteHelper();
+
+  void addFavorite() async {
+    Favorite favorite = Favorite(current.toString());
+    favorites.add(favorite);
+    await _db.insertFavorite(favorite);
+    getFavorites();
+
+    notifyListeners();
+  }
+
+  late Database database;
+
+  void removeFavorite(int id) async {
+    await _db.deleteFavorite(id);
+    favorites.removeWhere((element) => element.id == id);
+    notifyListeners();
+  }
+
+  void getFavorites() async {
+    List results = await _db.getFavorites();
+
+    favorites.clear();
+
+    for (var item in results) {
+      Favorite fav = Favorite.fromMap(item);
+      favorites.add(fav);
     }
     notifyListeners();
   }
@@ -123,12 +151,19 @@ class FavoritesPage extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.all(20),
           child: Text('Você possui '
-              '${appState.favorites.length} favoritos:'),
+              '${appState.favorites.length} palavras favoritadas:'),
         ),
         for (var pair in appState.favorites)
           ListTile(
-            leading: Icon(Icons.favorite),
-            title: Text(pair.asLowerCase),
+            leading: IconButton(
+              icon: Icon(Icons.highlight_remove),
+              onPressed: () {
+                appState.removeFavorite(pair.id!);
+                if (pair.name == appState.current.toString()) {
+                  appState.currentWasAdded = false;
+                }
+              },),
+            title: Text(pair.name.toLowerCase()),
           ),
       ],
     );
@@ -143,7 +178,7 @@ class GeneratorPage extends StatelessWidget {
     var pair = appState.current;
 
     IconData icon;
-    if (appState.favorites.contains(pair)) {
+    if (appState.currentWasAdded) {
       icon = Icons.favorite;
     } else {
       icon = Icons.favorite_border;
@@ -160,7 +195,10 @@ class GeneratorPage extends StatelessWidget {
             children: [
               ElevatedButton.icon(
                 onPressed: () {
-                  appState.addFavorite();
+                  if (!appState.currentWasAdded) {
+                    appState.currentWasAdded = true;
+                    appState.addFavorite();
+                  }
                 },
                 icon: Icon(icon),
                 label: Text('Like'),
@@ -169,6 +207,7 @@ class GeneratorPage extends StatelessWidget {
               ElevatedButton(
                 onPressed: () {
                   appState.getNext();
+                  appState.currentWasAdded = false;
                 },
                 child: Text('Next'),
               ),
